@@ -1,4 +1,21 @@
-# PHP Email
+<style type="text/css">
+	body {
+		font-family: "Source Sans Pro", "Lucida Grande", sans-serif;
+	}
+	table {
+		font-family: "Source Code Pro";
+		font-size: .9em;
+	}
+	td {
+		background-color: white;
+	}
+	th {
+		text-align: left;
+		background-color: #f8f8f8;
+	}
+</style>
+
+# Email Class
 
 Mark Simon
 Share & Enjoy
@@ -54,6 +71,7 @@ private $data=array(
 	'bcc'=>null,
 	'subject'=>null,
 	'headers'=>null,
+	'binary'=>null,
 );
 ```
 
@@ -74,11 +92,11 @@ The following options are required:
 | __from__		| from: address	| `ginger@example.net`
 | __subject__		| subject			| `Test`
 | __text__		| text message	| `This is a test`
-| htme				| HTML version of message	| `<p>This is a test</p>`
+| html				| HTML version of message	| `<p>This is a test</p>`
 | cc				| cc: address	| `barney@example.net`
 | bcc				| bcc: address	| `betty@example.net`
 | images			| path to image or<br>array of paths to images	| `'…/image.jpg'`<br>`array('…' , '…')`
-| attachment		| path of attachment		| `'…/document.pdf'`
+| attachments		| path of attachments	| `'…/document.pdf'`
 | headers	| array of additional headers	| `array(`<br>`'header'=>'data',`<br>`'header'=>'data')`
 
 ### Images
@@ -107,3 +125,20 @@ The file name does not have to be the original file name, though it will be by d
 
 The pipe (`|`) can be use to separate the original image path from the notional name.
 
+### Attachments
+
+To add attachments 
+
+### Binary Attachments
+
+Normally, you can include attachments in the `attachment` array. However, you can also input your own attachment from binary data.
+
+To do this, you will need to supply an array of the following:
+
+| key | value
+|------|--------------------------------
+| name | Notional name of the attachment
+| mime | Mime Type
+| data | Actual binary datas
+
+If you include an attachment the normal way above, this data is generated from the content.

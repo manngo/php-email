@@ -5,70 +5,11 @@
 	Mark Simon
 	Share & Enjoy
 
-	Required:
-		to
-		from
-		subject
-		text
-
-	Optional
-		html		HTML Message
-
-		cc
-		bcc
-
-		images		path of image file or array of paths
-		attachment	path of attachment
-
-		headers		array of additional email headers
-
-	Image
-
-		To include an image in your message:
-
-		1	Add the image as above
-		2	HTML: <img src="cid:[image]" alt="…">
-			[image] is the basename of the image file
-		3	Obviously, html is also required.
-
-	Sample:
-
-		$smtp='localhost';
-
-		$text="…";
-		$attachment='…';
-		$image='…';
-		$html=" … <img src=\"cid:$image\" alt=\"oops\"> …";
-
-		$to='…';
-		$from='…';
-		$cc='…';
-		$bcc='…';
-		$subject='…';
-
-		$headers='…';
-
-		$email=new Email(array(
-			'smtp'=>$smtp,
-			'text'=>$text,
-			'html'=>$html,
-			'image'=>$image,
-			'attachment'=>$attachment,
-			'to'=>$to,
-			'from'=>$from,
-			'cc'=>$cc,
-			'bcc'=>$bcc,
-			'subject'=>$subject,
-			'headers'=>$headers,
-		));
-
-		//	Alteratively:
-
-			$email=newEmail();
-			$email->setOptions(array(…)); //etc
-
-	$email->send();
 	================================================ */
+
+	function printr($data) {
+		print sprintf("<pre>%s</pre>",print_r($data,true));
+	}
 
 	class Email {
 #		private $smtp='10.0.0.15';
@@ -86,6 +27,7 @@
 			'bcc'=>null,
 			'subject'=>null,
 			'headers'=>null,
+			'binary'=>null,
 		);
 
 		function __construct($options=array()) {
@@ -115,8 +57,10 @@
 			if(array_key_exists('bcc',$options))
 				$this->data['bcc']=$this->filterEmail($options['bcc']) or $this->data['bcc']=null;
 
-			if(array_key_exists('image',$options)) $this->setImage($options['image']);
-			if(array_key_exists('attachment',$options)) $this->setAttachment($options['attachment']);
+			if(array_key_exists('images',$options)) $this->setImage($options['images']);
+			if(array_key_exists('attachments',$options)) $this->setAttachment($options['attachments']);
+			if(array_key_exists('binary',$options)) $this->setBinaryAttachment($options['binary']);
+
 		}
 
 		function filterEmail($text) {
@@ -128,8 +72,8 @@
 			if(preg_match('/[\r\n]/',$text)) return hull;
 		}
 
-		function setAttachment($attachment) {
-			if(!$attachment) {
+		function setAttachment($file) {
+			if(!$file) {
 				$this->data['attachment']=null;
 				return;
 			}
@@ -138,6 +82,23 @@
 			}
 			else $this->addAttachment($file);
 		}
+
+		function setBinaryAttachment($binary) {
+			if(!$binary) {
+				$this->data['attachment']=null;
+				return;
+			}
+			if(!$this->data['attachments']) $this->data['attachments']=array();
+
+
+#			if(is_array($binary)) {
+#				foreach($binary as $b) $this->data['attachments'][]=$b;
+#			}
+#			else $this->data['attachments'][]=$binary;
+
+			$this->data['attachments'][]=$binary;		//	single attachment only
+		}
+
 
 		function setImage($file) {
 			if(!$file || !$this->data['html']) {
@@ -152,7 +113,7 @@
 
 		function addAttachment($file) {
 			if(!$this->data['attachments']) $this->data['attachments']=array();
-			$this->data['attachments'][]=$this->addFile($file);
+			$this->data['attachments'][]=$this->addFile($file);		//	single attachment only
 		}
 
 		function addImage($file) {
@@ -164,7 +125,7 @@
 			//	Optional File Name
 				list($path,$name)=array_slice(explode('|',"$path|"),0,2);
 				if(!$name) $name=basename($path);
-
+print "$path,$name";
 			$file=array();
 			$file['file']=$file;
 			$finfo = new finfo(FILEINFO_MIME_TYPE);
@@ -174,107 +135,8 @@
 			$file['name']=$name;
 			return $file;
 		}
-
+		
 		function send() {
-			$boundary=md5(time());
-			$message=array();
-
-			$mixed="--mixed--$boundary";
-			$alternative="--alternative--$boundary";
-			$related="--related--$boundary";
-
-			$textHeader="Content-Type: text/plain; charset=\"utf-8\"\r\nContent-Transfer-Encoding: 7bit";
-			$htmlHeader="Content-Type: text/html; charset=\"utf-8\"\r\nContent-Transfer-Encoding: 7bit";
-
-			$mixedHeader="Content-Type: multipart/mixed; boundary=\"$mixed\"";
-			$alternativeHeader="Content-Type: multipart/alternative; boundary=\"$alternative\"";
-			$relatedHeader="Content-Type: multipart/related; boundary=\"$related\"";
-
-			if($this->data['images']) {
-				$imageHeader=array();
-				foreach($this->data['images'] as $i) {
-					$h=array();
-					$h[]=sprintf('Content-Type: %s; name="%s"',$i['mime'],$i['name']);
-					$h[]='Content-Transfer-Encoding: base64';
-					$h[]=sprintf('Content-ID: <%s>',$i['name']);
-#					$h[]=sprintf('Content-ID: <%s>',$name);
-					$h[]=sprintf('Content-Disposition: inline; filename="%s"',$i['name']);
-					$imageHeader[]=implode("\r\n",$h);
-				}
-			}
-			if($this->data['attachments']) {
-				$attachmentHeader=array();
-				foreach($this->data['attachments'] as $a) {
-					$h=array();
-					$h[]=sprintf('Content-Type: %s; name="%s"',$a['mime'],$a['name']);
-					$h[]='Content-Transfer-Encoding: base64';
-					$h[]=sprintf('Content-Disposition: attachment; filename="%s"',$a['name']);
-					$attachmentHeader[]=implode("\r\n",$h);
-				}
-			}
-
-			if($this->data['attachments']) $header=$mixedHeader;
-			elseif($this->data['html']) $header=$alternativeHeader;
-			else $header='';
-
-			//	Construct Message
-
-				if($this->data['attachments']) {
-					$message[]="--$mixed";
-				}
-				if($this->data['html']) {
-					if($this->data['attachments']) {
-						$message[]="$alternativeHeader";
-						$message[]="";
-					}
-					$message[]="--$alternative";
-					$message[]="$textHeader";
-					$message[]="";
-				}
-				$message[]=$this->data['text'];
-				if($this->data['html']) {
-					$message[]="--$alternative";
-				}
-				if($this->data['images']) {
-					$message[]="$relatedHeader";
-					$message[]="";
-					$message[]="--$related";
-				}
-				if($this->data['html']) {
-					$message[]="$htmlHeader";
-					$message[]="";
-				}
-				if($this->data['html']) {
-					if($this->data['css']) {
-						$message[]='<style type="text/css">';
-						$message[]=$this->data['css'];
-						$message[]='</style>';
-					}
-					$message[]=$this->data['html'];
-				}
-
-				if($this->data['images']) {
-					foreach($this->data['images'] as $i=>$image) {
-						$message[]="--$related";
-						$message[]=$imageHeader[$i];
-						$message[]="";
-						$message[]=$image['data'];
-					}
-					$message[]="--$related--";
-				}
-				if($this->data['html']) $message[]="--$alternative--";
-				if($this->data['attachments']) {
-					foreach($this->data['attachments'] as $a=>$attachment) {
-						$message[]="--$mixed";
-						$message[]=$attachmentHeader[$a];
-						$message[]="";
-						$message[]=$attachment['data'];
-					}
-					$message[]="--$mixed--";
-				}
-
-				$message=implode("\n",$message);
-
 			//	Construct Header
 				$headers=array();
 				//	Standard
@@ -284,18 +146,78 @@
 					if($this->data['cc']) $headers[]="Cc: {$this->data['cc']}";
 					if($this->data['bcc']) $headers[]="Bcc: {$this->data['bcc']}";
 				//	Additional Optional
-					if($this->data['headers'])
-						foreach($this->data['headers'] as $h) $headers[]=$h;
-				//	Message Header
-					$headers[]=$header;
+					if($this->data['headers']) foreach($this->data['headers'] as $header) $headers[]=$header;
+
+			//	Boundaries & Headers
+				$boundary=md5(time());
+
+				$mixed = $this->data['attachments'] ? "--mixed--$boundary" : '';
+				$alternative = $this->data['html'] ? "--alternative--$boundary" : '';
+				$related = $this->data['images'] ? "--related--$boundary" : '';
+
+			//	Headers
+				if($mixed || $alternative)	$headers[]='MIME-Version: 1.0';
+				if($mixed) $headers[]="Content-Type: multipart/mixed; boundary=\"$mixed\"";
+				elseif($alternative) $headers[]="Content-Type: multipart/alternative; boundary=\"$alternative\"";
+
+			//	Message
+				$message=array();
+
+			//	This is a multi-part message in MIME format.
+				if($mixed || $alternative) $message[]='This is a multi-part message in MIME format.';
+				
+			//	Attachments (see later)
+				if($mixed) $message[]="--$mixed";
+
+			//	HTML or Attachment
+				if($mixed && $alternative) $message[]="Content-Type: multipart/alternative; boundary=\"$alternative\"\r\n";
+				if($alternative) $message[]="--$alternative";
+				if($mixed || $alternative) $message[]="Content-Type: text/plain; charset=utf-8; format=flowed\r\nContent-Transfer-Encoding: 7bit\r\n";
+				
+			//	Text
+				$message[]=$this->data['text'];
+
+			//	HTML & Images
+				if($alternative) $message[]="\r\n--$alternative";
+				if($alternative && $related) $message[]="Content-Type: multipart/related; boundary=\"$related\"\r\n";
+				if($alternative && $related) $message[]="--$related";
+				if($alternative) $message[]="Content-Type: text/html; charset=\"utf-8\"\r\nContent-Transfer-Encoding: 7bit\r\n";
+				if($alternative) $message[]=$this->data['html'];
+
+				if($alternative && $related) foreach($this->data['images'] as $image) {
+					$message[]="--$related";
+					$message[]="Content-Type: {$image['mime']}; name=\"{$image['name']}\"";
+					$message[]="Content-Transfer-Encoding: base64";
+					$message[]="Content-ID: <{$image['name']}>";
+					$message[]="Content-Disposition: inline; filename=\"{$image['name']}\"";
+					$message[]='';
+					$message[]=$image['data'];
+				}
+
+				if($alternative && $related) $message[]="--$related";
+				if($alternative) $message[]="\r\n--$alternative--\r\n";
+				
+			//	Attachments
+				if($mixed) {
+					foreach($this->data['attachments'] as $attachment) {
+						$message[]="--$mixed";
+						$message[]="Content-Type: {$attachment['mime']}; name=\"{$attachment['name']}\"";
+						$message[]="Content-Transfer-Encoding: base64";
+						$message[]="Content-Disposition: attachment; filename=\"{$attachment['name']}\"";
+						$message[]='';
+						$message[]=$attachment['data'];
+					}
+					$message[]="--$mixed--";
+				}
+
+			//	Implode
 				$headers=implode("\r\n",$headers);
+				$message=implode("\r\n",$message);
 
 			//	Extra Parameters (currently hard coded)
 				$parms="-f {$this->data['from']} -r {$this->data['from']}";
-#print $headers;
-#print "==== {$this->data['cc']}<br>\n";
+
 			mail($this->data['to'],$this->data['subject'],$message,$headers,$parms);
-#			mail($this->data['to'],$this->data['subject'],$message,$headers);
 		}
 
 		static function text2p($text) {
